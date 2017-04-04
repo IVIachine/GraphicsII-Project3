@@ -17,10 +17,10 @@
 //-----------------------------------------------------------------------------
 // external includes
 
+#include <cassert>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-
 // third party math lib
 #include "cbmath/cbtkMatrix.h"
 
@@ -87,6 +87,7 @@ enum ModelIndex
 	// built-in models
 	axesModel,
 	fsqModel,
+	fsqModel1,
 	boxModel, sphere8x6Model, sphere32x24Model,
 
 	// morph targets
@@ -159,6 +160,8 @@ enum FBOIndex
 	// scene
 	sceneFBO, 
 
+	//Visualizer
+	graphFBO,
 //-----------------------------
 	fboCount
 };
@@ -355,6 +358,10 @@ void setupGeometry()
 	attribs[1] = egpCreateAttributeDescriptor(ATTRIB_TEXCOORD, ATTRIB_VEC2, egpfwGetUnitQuadTexcoords());
 	vao[fsqModel] = egpCreateVAOInterleaved(PRIM_TRIANGLE_STRIP, attribs, 2, 4, (vbo + fsqModel), 0);
 
+	// full-screen quad
+	attribs[0].data = egpfwGetUnitQuadPositions();
+	attribs[1] = egpCreateAttributeDescriptor(ATTRIB_TEXCOORD, ATTRIB_VEC2, egpfwGetUnitQuadTexcoords());
+	vao[fsqModel1] = egpCreateVAOInterleaved(PRIM_TRIANGLE_STRIP, attribs, 2, 4, (vbo + fsqModel1), 0);
 
 	// morphing: test shape will just be a quad with 4 built-in keyframe poses
 	{
@@ -672,6 +679,8 @@ void setupFramebuffers(unsigned int frameWidth, unsigned int frameHeight)
 
 	// scene
 	fbo[sceneFBO] = egpfwCreateFBO(frameWidth, frameHeight, 1, colorFormat, DEPTH_D32, SMOOTH_NOWRAP);
+
+	fbo[graphFBO] = egpfwCreateFBO(frameWidth, frameHeight, 1, colorFormat, DEPTH_DISABLE, SMOOTH_NOWRAP);
 }
 
 void deleteFramebuffers()
@@ -713,6 +722,20 @@ void drawToBackBuffer(int x, int y, unsigned int w, unsigned int h)
 
 
 //-----------------------------------------------------------------------------
+cbmath::mat4 visualizerLoc;
+float miniBoxScale = .25f;
+// initialize game objects
+float mapWidthToScreenSpace(float key)
+{
+	float returnVal = key / (miniBoxScale * win_w) * win_w;
+	return cbmath::clamp(returnVal, 0.0f, (float)win_w);
+}
+
+float mapHeightToScreenSpace(float key)
+{
+	float returnVal = key / (miniBoxScale * win_h) * win_h;
+	return cbmath::clamp(returnVal, 0.0f, (float)win_h);
+}
 
 // update camera
 void updateCameraControlled(float dt, unsigned int controlCamera, unsigned int controlCameraIndex, egpMouse *mouse)
@@ -725,8 +748,10 @@ void updateCameraControlled(float dt, unsigned int controlCamera, unsigned int c
 	// 3. update view matrix (camera's transformation)
 	if (egpMouseIsButtonDown(mouse, 0))
 	{
-		cameraElevation -= (float)egpMouseDeltaY(mouse) * dt * cameraRotateSpeed;
-		cameraAzimuth -= (float)egpMouseDeltaX(mouse) * dt * cameraRotateSpeed;
+		//cameraElevation -= (float)egpMouseDeltaY(mouse) * dt * cameraRotateSpeed;
+		//cameraAzimuth -= (float)egpMouseDeltaX(mouse) * dt * cameraRotateSpeed;
+
+		printf("%f, %f\n", mapWidthToScreenSpace((float)egpMouseX(mouse)), mapHeightToScreenSpace((float)egpMouseY(mouse)));
 	}
 
 	modelMatrix[controlCamera] = cbtk::cbmath::makeRotationEuler4ZYX(cameraElevation, cameraAzimuth, 0.0f);
@@ -755,13 +780,14 @@ void updateCameraOrbit(float dt, unsigned int controlCamera, unsigned int contro
 
 //-----------------------------------------------------------------------------
 
-// initialize game objects
 // mainly for good memory management, handling ram and vram
 int initGame()
 {
 	// setup framebuffers
 	// don't bother with this here actually... see window resize callback
-	//	setupFramebuffers();
+	visualizerLoc = cbmath::makeTranslation4(-.75f, .75f, 0.0f) * cbmath::makeScale4(miniBoxScale);
+	//visualizerLoc = cbmath::m4Identity;
+	setupFramebuffers(viewport_tw, viewport_th);
 
 	// setup geometry
 	setupGeometry();
@@ -1025,6 +1051,20 @@ void renderMorphObject()
 	}
 }
 
+void renderGraph()
+{
+	currentUniformSet = glslCommonUniforms[testTextureProgramIndex];
+	egpActivateProgram(glslPrograms + testTextureProgramIndex);
+
+	egpActivateVAO(vao + fsqModel);
+	egpfwBindColorTargetTexture(fbo + graphFBO, 0, 0);
+	egpSendUniformFloatMatrix(glslCommonUniforms[testTextureProgramIndex][unif_mvp], UNIF_MAT4, 1, 0, visualizerLoc.m);
+	egpDrawActiveVAO();
+	
+	glBindTexture(GL_TEXTURE_2D, 0);
+	egpActivateProgram(NULL);
+	egpActivateVAO(NULL);
+}
 
 // draw frame
 // DRAWING AND UPDATING SHOULD BE SEPARATE (good practice)
@@ -1057,13 +1097,12 @@ void renderGameState()
 
 	//	// bind scene texture
 	//	if (displayColor)
-			egpfwBindColorTargetTexture(fboFinalDisplay, 0, 0);
+		assert(egpfwBindColorTargetTexture(fbo + sceneFBO, 0, 0) == 1);
 	//	else
 	//		egpfwBindDepthTargetTexture(fboFinalDisplay, 0);
 
 		// draw fsq
 		egpDrawActiveVAO();
-
 		// TEST DRAW: coordinate axes at center of spaces
 		//	and other line objects
 		if (testDrawAxes)
@@ -1084,6 +1123,7 @@ void renderGameState()
 			egpDrawActiveVAO();
 		}
 
+		renderGraph();
 		// done
 		glEnable(GL_DEPTH_TEST);
 	}
@@ -1133,7 +1173,7 @@ void onCloseWindow()
 	termGame();
 }
 
-// window resized
+// window resizedS
 void onResizeWindow(int w, int h)
 {
 	// set new sizes
