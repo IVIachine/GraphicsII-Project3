@@ -1,0 +1,4 @@
+﻿  egpfwDemo.cpp
+c:\users\student\desktop\silasbaker\project3\sp17-egp300-graphics2-fw\egp graphics fw class base\source\egpfwdemo\egpfwdemo.cpp(1022): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+c:\users\student\desktop\silasbaker\project3\sp17-egp300-graphics2-fw\egp graphics fw class base\source\egpfwdemo\egpfwdemo.cpp(1023): warning C4244: 'argument': conversion from 'int' to 'float', possible loss of data
+  egpfwDemoFreeglut.vcxproj -> C:\Users\Student\Desktop\SilasBaker\Project3\sp17-EGP300-Graphics2-FW\EGP Graphics FW Class Base\bin\x86\v140\Debug\egpfwDemoFreeglut.exe
